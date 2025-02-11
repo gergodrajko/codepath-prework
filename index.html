@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memória Játék</title>
+    <link rel="icon" href="images/icon.png" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 50px;
+            background-color: #e8f0f2;
+            transition: background-color 0.3s ease;
+        }
+
+        #menu {
+            margin-bottom: 20px;
+        }
+
+        select {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        select:hover {
+            background-color: #45a049;
+        }
+
+        #gameBoard {
+            display: grid;
+            transition: transform 0.5s ease-in-out;
+        }
+
+        .card {
+            width: 100px;
+            height: 100px;
+            perspective: 1000px;
+            margin: 10px;
+        }
+
+        .card-inner {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-front,
+        .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-front {
+            background-color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card-back {
+            background-color: #f9f9f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: rotateY(180deg); /* Kezdetben fordítva */
+        }
+
+        .card img {
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        #score {
+            margin-top: 20px;   
+            font-size: 24px;
+            color: #4CAF50;
+            font-weight: bold;
+            padding: 10px;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        #message {
+            font-size: 20px;
+            margin-top: 10px;
+            color: #d9534f;
+        }
+    </style>
+</head>
+<body>
+    <div id="menu">
+        <select id="imageCollection" onchange="onImageCollectionChange(this)">
+            <option value="collection1" selected>Gyűjtemény 1</option>
+            <option value="collection2">Gyűjtemény 2</option>
+            <option value="collection3">Gyűjtemény 3</option>
+            <option value="collection4">Gyűjtemény 4</option>
+        </select>
+        <select onchange="onPalyameterValasztas(this)">
+            <option value="4x4" selected>4x4 Pálya</option>
+            <option value="4x6">4x6 Pálya</option>
+            <option value="6x6">6x6 Pálya</option>
+            <option value="6x8">6x8 Pálya</option>
+        </select>
+    </div>
+    <div id="gameBoard"></div>
+    <div id="score">Pontszám: 1000</div>
+    <div id="message"></div>
+
+    <script>
+        let flippedCards = [];
+        let gameBoard = document.getElementById('gameBoard');
+        let scoreDisplay = document.getElementById('score');
+        let messageDisplay = document.getElementById('message');
+        let score = 1000;
+        let startFlipTime = 0;
+
+        function generateImagePaths(collectionNumber, totalImages) {
+            const paths = [];
+            for (let i = 1; i <= totalImages; i++) {
+                paths.push(`images/collection${collectionNumber}/${collectionNumber}c${i}.png`);
+            }
+            return paths;
+        }
+
+        const imageCollections = {
+            collection1: generateImagePaths(1, 24),
+            collection2: generateImagePaths(2, 24),
+            collection3: generateImagePaths(3, 24),
+            collection4: generateImagePaths(4, 24)
+        };
+
+        let currentCollection = 'collection1';
+
+        function onImageCollectionChange(selectElement) {
+            currentCollection = selectElement.value;
+            startGame(4, 4);
+        }
+
+        function onPalyameterValasztas(selectElement) {
+            const selectedSize = selectElement.value;
+            const size = selectedSize.split('x');
+            startGame(parseInt(size[0]), parseInt(size[1]));
+        }
+
+        function updateScoreDisplay() {
+            scoreDisplay.innerHTML = `Pontszám: ${score}`;
+            if (score > 750) {
+                scoreDisplay.style.color = '#4CAF50';
+            } else if (score > 250) {
+                scoreDisplay.style.color = '#FFA500';
+            } else {
+                scoreDisplay.style.color = '#d9534f';
+            }
+        }
+
+        function startGame(rows, columns) {
+            flippedCards = [];
+            gameBoard.innerHTML = '';
+            messageDisplay.innerHTML = '';
+            score = 1000;
+            updateScoreDisplay();
+            let cardValues = [];
+            let numberOfPairs = (rows * columns) / 2;
+            const cardImages = imageCollections[currentCollection];
+
+            for (let i = 0; i < numberOfPairs; i++) {
+                let image = cardImages[i % cardImages.length];
+                cardValues.push(image, image);
+            }
+
+            cardValues = shuffle(cardValues);
+
+            for (let i = 0; i < rows; i++) {
+                let row = document.createElement('div');
+                row.style.display = 'flex';
+
+                for (let j = 0; j < columns; j++) {
+                    let card = document.createElement('div');
+                    card.classList.add('card');
+                    card.innerHTML = `
+                        <div class="card-inner">
+                            <div class="card-front"></div>
+                            <div class="card-back"><img src="${cardValues[i * columns + j]}" alt="card image" /></div>
+                        </div>
+                    `;
+                    card.addEventListener('click', () => flipCard(card));
+                    row.appendChild(card);
+                }
+
+                gameBoard.appendChild(row);
+            }
+        }
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function flipCard(card) {
+            if (flippedCards.length === 2 || card.classList.contains('flipped')) {
+                return;
+            }
+
+            card.classList.add('flipped');
+            flippedCards.push(card);
+
+            if (flippedCards.length === 2) {
+                checkMatch();
+            }
+
+            if (flippedCards.length === 1) {
+                startFlipTime = Date.now();
+            }
+        }
+
+        function checkMatch() {
+            let [card1, card2] = flippedCards;
+            let timeTaken = (Date.now() - startFlipTime) / 1000;
+
+            if (card1.querySelector('.card-back img').src === card2.querySelector('.card-back img').src) {
+                if (timeTaken <= 3) {
+                    score = Math.max(0, score);
+                } else {
+                    score = Math.max(0, score - 10);
+                }
+
+                updateScoreDisplay();
+
+                flippedCards = [];
+
+                if (isGameOver()) {
+                    messageDisplay.innerHTML = 'Győzelem! Nyertél!';
+                    glowAllCards();
+                    saveGameResult();
+                }
+            } else {
+                score = Math.max(0, score - 20);
+                updateScoreDisplay();
+
+                setTimeout(() => {
+                    card1.classList.remove('flipped');
+                    card2.classList.remove('flipped');
+                    flippedCards = [];
+                }, 1000);
+            }
+        }
+
+        function isGameOver() {
+            const cardsLeft = document.querySelectorAll('.card:not(.flipped)').length;
+            return cardsLeft === 0;
+        }
+
+        function glowAllCards() {
+            const allCards = document.querySelectorAll('.card');
+            allCards.forEach(card => {
+                card.classList.add('glowing');
+            });
+
+            setTimeout(() => {
+                allCards.forEach(card => {
+                    card.classList.remove('glowing');
+                });
+            }, 3000);
+        }
+
+        function saveGameResult() {
+            const playerName = prompt("Kérlek add meg a neved:");
+            // A pályaméret az aktivált legördülő menüből kerül ki
+            const selectedSize = document.querySelector('select:nth-child(2)').value; // A második select elem
+            const gameSize = selectedSize; // Ezt a kiválasztott méretet használjuk
+            const date = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        
+            fetch('save_game.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: playerName,
+                    score: score,
+                    size: gameSize, // A választott pályaméret
+                    date: date
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return fetch('create_database.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }).then(() => {
+                        return response.json();
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Game result saved:', data);
+            })
+            .catch((error) => {
+                console.error('Error saving game result:', error);
+            });
+        }
+        
+    </script>
+</body>
+</html>
